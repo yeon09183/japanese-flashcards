@@ -1,0 +1,913 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
+<meta name="apple-mobile-web-app-title" content="단어장">
+<meta name="theme-color" content="#16202A">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" href="icon-192.png">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>일본어 단어장</title>
+<style>
+  /* 다크 단일 테마 플래시카드 */
+  :root{
+    color-scheme:dark;
+    --ink:#16202A;
+    --ink-2:#1E2B38;
+    --paper:#F6F2E9;
+    --paper-dim:#DED7C8;
+    --line:rgba(246,242,233,.14);
+    --matsu:#4E8C6A;
+    --shu:#C4503A;
+    --gold:#C9A44C;
+    --radius:14px;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{height:100%;margin:0;}
+  body{
+    background:var(--ink);
+    color:var(--paper);
+    font-family:-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Segoe UI",sans-serif;
+    display:flex;flex-direction:column;
+    overscroll-behavior:none;
+    padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+  }
+  button{font-family:inherit;border:none;background:none;color:inherit;cursor:pointer;}
+
+  /* ---------- 헤더 ---------- */
+  header{
+    padding:12px 16px 10px;
+    border-bottom:1px solid var(--line);
+    flex:0 0 auto;
+  }
+  .head-row{display:flex;align-items:center;gap:12px;}
+  .deck-name{font-size:15px;font-weight:600;letter-spacing:-.01em;flex:1;min-width:0;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .count{font-variant-numeric:tabular-nums;font-size:14px;color:var(--paper-dim);}
+  .icon-btn{
+    width:34px;height:34px;border-radius:9px;display:grid;place-items:center;
+    font-size:16px;background:rgba(246,242,233,.07);
+  }
+  .icon-btn:active{background:rgba(246,242,233,.16);}
+  .bar{height:3px;background:rgba(246,242,233,.12);border-radius:2px;margin-top:10px;overflow:hidden;}
+  .bar i{display:block;height:100%;width:0;background:var(--gold);transition:width .25s ease;}
+  .meta{display:flex;gap:14px;margin-top:8px;font-size:12px;color:var(--paper-dim);
+    font-variant-numeric:tabular-nums;}
+  .meta b{font-weight:600;color:var(--paper);}
+
+  /* ---------- 카드 ---------- */
+  main{flex:1 1 auto;display:flex;flex-direction:column;padding:0 16px;min-height:0;}
+  .card{
+    flex:1 1 auto;margin:14px 0;background:var(--paper);color:var(--ink);
+    border-radius:var(--radius);display:flex;flex-direction:column;
+    align-items:center;justify-content:center;text-align:center;
+    padding:24px 18px;position:relative;overflow:hidden;min-height:0;
+  }
+  .card::after{
+    content:"";position:absolute;left:0;right:0;bottom:0;height:4px;background:var(--gold);
+  }
+  .star{position:absolute;top:10px;right:12px;font-size:20px;color:var(--paper-dim);line-height:1;padding:4px;}
+  .star.on{color:var(--gold);}
+  .chip{position:absolute;top:14px;left:14px;font-size:11px;color:#8A8272;}
+  .kanji{
+    font-family:"Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif;
+    font-size:clamp(40px,15vw,80px);font-weight:600;line-height:1.25;
+    letter-spacing:.04em;word-break:keep-all;
+  }
+  .kana{
+    font-family:"Hiragino Mincho ProN","Yu Mincho",serif;
+    font-size:clamp(18px,5.5vw,26px);color:#6F6656;margin-top:14px;min-height:1.4em;
+    opacity:0;transition:opacity .18s ease;
+  }
+  .ko{
+    font-size:clamp(17px,5vw,23px);font-weight:600;margin-top:10px;min-height:1.4em;
+    opacity:0;transition:opacity .18s ease;color:#2B3440;
+  }
+  .show{opacity:1;}
+  .notrans{transition:none !important;}
+  .wrong-tag{
+    position:absolute;bottom:14px;left:0;right:0;font-size:11px;color:var(--shu);font-weight:600;
+  }
+
+  /* ---------- 버튼 ---------- */
+  .reveal{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+  .reveal button{
+    padding:15px 0;border-radius:11px;font-size:16px;font-weight:600;
+    background:var(--ink-2);border:1px solid var(--line);
+  }
+  .reveal button:active{background:#2A3A4A;}
+  .reveal button.done{color:#6E7A86;}
+  .judge{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:10px 0 16px;}
+  .judge button{padding:17px 0;border-radius:11px;font-size:17px;font-weight:700;color:#fff;}
+  .know{background:var(--matsu);}
+  .dont{background:var(--shu);}
+  .judge button:active{filter:brightness(.9);}
+  footer{flex:0 0 auto;padding:0 16px 6px;}
+
+  /* ---------- 시작/결과 화면 ---------- */
+  .screen{
+    position:fixed;inset:0;background:var(--ink);z-index:20;overflow-y:auto;
+    padding:calc(env(safe-area-inset-top) + 28px) 20px calc(env(safe-area-inset-bottom) + 28px);
+    -webkit-overflow-scrolling:touch;
+  }
+  .screen.hidden{display:none;}
+  .title{
+    font-family:"Hiragino Mincho ProN","Yu Mincho",serif;
+    font-size:30px;font-weight:600;letter-spacing:.02em;margin:0 0 4px;
+  }
+  .sub{color:var(--paper-dim);font-size:14px;margin:0 0 26px;}
+  .back{font-size:15px;color:var(--gold);padding:6px 0;margin:-6px 0 14px;font-weight:600;}
+  .deck .s{display:block;font-size:12px;font-weight:400;color:var(--paper-dim);margin-top:3px;}
+  .sec{font-size:13px;color:var(--paper-dim);margin:22px 0 9px;}
+  .deck{
+    width:100%;text-align:left;background:var(--ink-2);border:1px solid var(--line);
+    border-radius:12px;padding:15px 16px;margin-bottom:9px;display:flex;align-items:center;gap:12px;
+  }
+  .deck:active{background:#2A3A4A;}
+  .deck .t{flex:1;font-size:16px;font-weight:600;}
+  .deck .n{font-size:13px;color:var(--paper-dim);font-variant-numeric:tabular-nums;}
+  .deck.off{opacity:.4;}
+  .toggle{
+    display:flex;align-items:center;justify-content:space-between;
+    padding:14px 16px;background:var(--ink-2);border:1px solid var(--line);
+    border-radius:12px;margin-bottom:9px;font-size:15px;
+  }
+  .sw{width:50px;height:30px;border-radius:15px;background:rgba(246,242,233,.18);position:relative;flex:0 0 auto;}
+  .sw::after{content:"";position:absolute;top:3px;left:3px;width:24px;height:24px;border-radius:50%;
+    background:var(--paper);transition:transform .16s ease;}
+  .sw.on{background:var(--matsu);}
+  .sw.on::after{transform:translateX(20px);}
+  .big{
+    width:100%;padding:17px;border-radius:12px;background:var(--gold);color:#1B1305;
+    font-size:17px;font-weight:700;margin-top:20px;
+  }
+  .ghost{
+    width:100%;padding:15px;border-radius:12px;border:1px solid var(--line);
+    font-size:15px;font-weight:600;margin-top:9px;color:var(--paper);
+  }
+  .score{display:flex;gap:10px;margin:22px 0 4px;}
+  .score div{flex:1;background:var(--ink-2);border:1px solid var(--line);border-radius:12px;padding:14px;text-align:center;}
+  .score b{display:block;font-size:26px;font-variant-numeric:tabular-nums;}
+  .score span{font-size:12px;color:var(--paper-dim);}
+  .list{margin-top:6px;}
+  .row{
+    display:flex;align-items:baseline;gap:10px;padding:11px 2px;border-bottom:1px solid var(--line);
+  }
+  .row .j{font-family:"Hiragino Mincho ProN",serif;font-size:18px;flex:0 0 auto;}
+  .row .r{font-size:12px;color:var(--paper-dim);flex:0 0 auto;}
+  .row .m{font-size:13px;color:var(--paper-dim);margin-left:auto;text-align:right;}
+  .note{font-size:12px;color:#7C8590;line-height:1.6;margin-top:24px;}
+  @media (min-width:700px){
+    body{max-width:520px;margin:0 auto;border-left:1px solid var(--line);border-right:1px solid var(--line);}
+    .screen{max-width:520px;left:50%;transform:translateX(-50%);}
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="head-row">
+    <button class="icon-btn" id="btnHome" aria-label="목록으로">✕</button>
+    <div class="deck-name" id="deckName">단어장</div>
+    <div class="count" id="count">0 / 0</div>
+  </div>
+  <div class="bar"><i id="barFill"></i></div>
+  <div class="meta">
+    <span>공부시간 <b id="clock">00:00</b></span>
+    <span>모름 <b id="wrongN">0</b></span>
+    <span>남은 카드 <b id="leftN">0</b></span>
+  </div>
+</header>
+
+<main>
+  <div class="card" id="card">
+    <div class="chip" id="chip"></div>
+    <button class="star" id="star" aria-label="어려운 단어 표시">☆</button>
+    <div class="kanji" id="kanji">—</div>
+    <div class="kana" id="kana"></div>
+    <div class="ko" id="ko"></div>
+    <div class="wrong-tag" id="wrongTag"></div>
+  </div>
+  <div class="reveal">
+    <button id="btnKana">ひらがな</button>
+    <button id="btnKo">한국어 뜻</button>
+  </div>
+</main>
+
+<footer>
+  <div class="judge">
+    <button class="know" id="btnKnow">알고있음</button>
+    <button class="dont" id="btnDont">모름</button>
+  </div>
+</footer>
+
+<!-- 시작 화면 -->
+<section class="screen" id="home">
+  <button class="back" id="btnBooks" hidden>‹ 단어장 목록</button>
+  <h1 class="title" id="homeTitle">日本語 単語帳</h1>
+  <p class="sub" id="homeSub">단어장을 고른 뒤, 공부할 과를 선택하세요.</p>
+
+  <div class="sec" id="secLabel">단어장</div>
+  <div id="deckList"></div>
+
+  <div id="settings" hidden>
+  <div class="sec">설정</div>
+  <div class="toggle"><span>순서 섞기</span><div class="sw on" id="swShuffle"></div></div>
+  <div class="toggle"><span>모른 단어 바로 다시 나오기</span><div class="sw on" id="swRepeat"></div></div>
+  <div class="toggle"><span>뜻을 먼저 보고 한자 맞히기</span><div class="sw" id="swReverse"></div></div>
+  </div>
+
+  <p class="note">
+    ‘모름’을 누른 단어는 같은 회독 안에서 다시 나오고, 회독이 끝나면 모른 단어만 모아 한 번 더 돌릴 수 있습니다.
+    ☆ 표시는 기기에 저장되어 다음에 열 때도 남아 있습니다.
+  </p>
+</section>
+
+<!-- 결과 화면 -->
+<section class="screen hidden" id="result">
+  <h1 class="title" id="resTitle">1회독 완료</h1>
+  <p class="sub" id="resSub"></p>
+  <div class="score">
+    <div><b id="resKnow">0</b><span>알고있음</span></div>
+    <div><b id="resDont">0</b><span>모름</span></div>
+    <div><b id="resTime">00:00</b><span>공부시간</span></div>
+  </div>
+  <div class="sec" id="resListLabel">다시 볼 단어</div>
+  <div class="list" id="resList"></div>
+  <button class="big" id="btnAgainWrong">모르는 단어만 다시</button>
+  <button class="ghost" id="btnAgainAll">처음부터 다시</button>
+  <button class="ghost" id="btnBackHome">과 목록</button>
+</section>
+
+<script>
+/* ---------------- 단어 데이터 ---------------- */
+const BOOKS = [
+{ id:"dokjak", name:"일본어 독작 단어", sub:"10~12과", decks:[
+  { id:"r10", name:"10과", words:[
+    ["紙幣","しへい","지폐"],
+    ["ニセ札","にせさつ","위조지폐"],
+    ["防ぐ","ふせぐ","방지하다"],
+    ["覚える","おぼえる","기억하다"],
+    ["すぐれた能力","すぐれたのうりょく","뛰어난 능력"],
+    ["わずかな","わずかな","미묘한"],
+    ["変化","へんか","변화"],
+    ["見分ける","みわける","구분하다"],
+    ["気がつく","きがつく","알아차리다"],
+    ["業績","ぎょうせき","업적"],
+    ["尊敬する","そんけいする","존경하다"],
+    ["細菌学者","さいきんがくしゃ","세균학자"],
+    ["農家","のうか","농가"],
+    ["やけどを負う","やけどをおう","화상을 입다"],
+    ["助け","たすけ","도움"],
+    ["惜しむ","おしむ","아까워하다"],
+    ["励む","はげむ","힘쓰다"],
+    ["救う","すくう","구하다"],
+    ["ノミネートする","ノミネートする","후보로 지명하다"],
+    ["感染症","かんせんしょう","감염증"],
+    ["訪れる","おとずれる","방문하다"],
+    ["自ら","みずから","스스로"],
+    ["人類","じんるい","인류"],
+    ["貢献","こうけん","공헌"]
+  ]},
+  { id:"r11", name:"11과", words:[
+    ["住宅街","じゅうたくがい","주택가"],
+    ["一戸建て","いっこだて","단독주택"],
+    ["目につく","めにつく","눈에 띄다"],
+    ["名称","めいしょう","명칭"],
+    ["気づく","きづく","알아차리다, 눈치채다"],
+    ["和風","わふう","일본풍"],
+    ["気になる","きになる","마음에 걸리다, 신경이 쓰이다"],
+    ["高台","たかだい","주위보다 약간 높은 평지, 돈대"],
+    ["共同住宅","きょうどうじゅうたく","공동주택"],
+    ["別荘","べっそう","별장"],
+    ["貴族","きぞく","귀족"],
+    ["間取り","まどり","평면도"],
+    ["様子","ようす","모습"],
+    ["板の間","いたのま","마루방"],
+    ["洋風","ようふう","서양풍"],
+    ["大家さん","おおやさん","집주인"],
+    ["オシャレだ","おしゃれだ","세련되다, 멋지다"]
+  ]},
+  { id:"r12", name:"12과", words:[
+    ["案内状","あんないじょう","안내장"],
+    ["決まり文句","きまりもんく","정해진 문구"],
+    ["受け取る","うけとる","받다, 수취하다"],
+    ["書き進める","かきすすめる","써 나아가다"],
+    ["前文","ぜんぶん","전문, 첫 머리의 인사말 부분"],
+    ["拝啓","はいけい","배계, '삼가 아룀'의 뜻으로 편지 첫머리에 쓰는 말"],
+    ["謹啓","きんけい","근계, '삼가 아뢰다'의 뜻으로 편지 첫머리에 쓰는 말"],
+    ["一礼","いちれい","가볍게 인사를 함"],
+    ["申し上げる","もうしあげる","말씀드리다"],
+    ["丁寧","ていねい","정중"],
+    ["繁栄","はんえい","번영"],
+    ["述べる","のべる","기술하다, 쓰다"],
+    ["主文","しゅぶん","문장 속의 주된 부분"],
+    ["肝心だ","かんじんだ","긴요하다"],
+    ["さて","さて","그런데 (다른 화제로 옮기는 기분을 나타냄)"],
+    ["つきましては","つきましては","ついては(그런고로)의 공손한 말씨"],
+    ["末文","まつぶん","글의 끝 부분"],
+    ["労う","ねぎらう","위로하다, 어루만지다"],
+    ["敬具","けいぐ","경구, 편지 글 끝에 '삼가 말씀 드립니다'의 뜻으로 덧붙이는 인사말"],
+    ["締めくくる","しめくくる","결말을 짓다, 끝을 맺다"],
+    ["後付け","あとづけ","후기"],
+    ["日付","ひづけ","날짜"],
+    ["差出人名","さしだしにんめい","보낸 사람 이름"],
+    ["宛名","あてな","받는 사람 이름"],
+    ["間柄","あいだがら","사이"],
+    ["重んじる","おもんじる","중요시하다, 존중하다"],
+    ["こもる","こもる","가득 차다, 담기다"]
+  ]}
+]},
+{ id:"dynamic", name:"다이나믹 일본어", sub:"초급 3·4 · 3~16과", decks:[
+  { id:"d0", name:"3과", words:[
+    ["趣味", "しゅみ", "취미"],
+    ["夢", "ゆめ", "꿈"],
+    ["夢をみる", "ゆめをみる", "꿈을 꾸다"],
+    ["もし", "もし", "만약, 혹시"],
+    ["もしかして", "もしかして", "혹시"],
+    ["テニスコート", "テニスコート", "테니스코트"],
+    ["医者", "いしゃ", "의사"],
+    ["栄養", "えいよう", "영양, 영양소"],
+    ["体", "からだ", "몸, 신체"],
+    ["伝える", "つたえる", "전하다"],
+    ["水泳", "すいえい", "수영"],
+    ["切手", "きって", "우표"],
+    ["集める", "あつめる", "모으다"],
+    ["決める", "きめる", "결정하다"],
+    ["出かける", "でかける", "나가다, 외출하다"],
+    ["若い", "わかい", "젊다"],
+    ["留学", "りゅうがく", "유학"],
+    ["運転する", "うんてんする", "운전하다"],
+    ["絵", "え", "그림"],
+    ["描く", "えがく", "그리다, 묘사하다"],
+    ["～階", "～かい", "~층"]
+  ]},
+  { id:"d1", name:"4과", words:[
+    ["顔色", "かおいろ", "안색"],
+    ["悪い", "わるい", "나쁘다"],
+    ["食欲", "しょくよく", "식욕"],
+    ["寒気がする", "さむけがする", "한기가 돌다"],
+    ["熱", "ねつ", "열"],
+    ["喉", "のど", "목"],
+    ["午前", "ごぜん", "오전"],
+    ["午後", "ごご", "오후"],
+    ["小説", "しょうせつ", "소설"],
+    ["無理だ", "むりだ", "무리다, 할 수 없다"],
+    ["いつか", "いつか", "언젠가"],
+    ["運動", "うんどう", "운동"],
+    ["毎日", "まいにち", "매일"],
+    ["調子", "ちょうし", "사정, 형편, 상태"],
+    ["財布", "さいふ", "지갑"],
+    ["～方", "～かた", "~하는 법"],
+    ["兄弟", "きょうだい", "형제"],
+    ["遅れる", "おくれる", "늦다, 늦어지다"],
+    ["傘", "かさ", "우산"],
+    ["お風呂に入る", "おふろにはいる", "탕에 들어가다"],
+    ["お菓子", "おかし", "과자"],
+    ["もう一度", "もういちど", "한 번 더, 다시 한번"],
+    ["電話をかける", "でんわをかける", "전화를 걸다"],
+    ["気分", "きぶん", "기분"],
+    ["気持ち", "きもち", "기분"],
+    ["用事", "ようじ", "용무, 볼일"],
+    ["急用", "きゅうよう", "급한 용무"],
+    ["咳", "せき", "기침"],
+    ["くしゃみ", "くしゃみ", "재채기"],
+    ["あくび", "あくび", "하품"],
+    ["けがをする", "けがをする", "다치다"],
+    ["けが", "けが", "상처"],
+    ["めまいがする", "めまいがする", "현기증이 나다"]
+  ]},
+  { id:"d2", name:"5과", words:[
+    ["キーホルダー", "キーホルダー", "키홀더, 열쇠고리"],
+    ["あげる", "あげる", "(내가 남에게) 주다"],
+    ["さしあげる", "さしあげる", "(남에게) 드리다"],
+    ["くれる", "くれる", "(남이 나에게) 주다"],
+    ["くださる", "くださる", "(남이 나에게) 주시다"],
+    ["もらう", "もらう", "(내가 남에게) 받다"],
+    ["いただく", "いただく", "(내가 남에게) 받다"],
+    ["週末", "しゅうまつ", "주말"],
+    ["泊める", "とめる", "묵게 하다, 숙박시키다"],
+    ["泊まる", "とまる", "묵다, 숙박하다"],
+    ["見物する", "けんぶつする", "구경하다"],
+    ["城", "しろ", "성"],
+    ["案内", "あんない", "안내"],
+    ["貸す", "かす", "빌려주다"],
+    ["借りる", "かりる", "빌리다"],
+    ["本当に", "ほんとうに", "정말로, 진짜로"],
+    ["手紙", "てがみ", "편지"],
+    ["人形", "にんぎょう", "인형"],
+    ["紹介", "しょうかい", "소개"],
+    ["送る", "おくる", "보내다, 배웅하다"],
+    ["手袋", "てぶくろ", "장갑"],
+    ["渡す", "わたす", "건네다"],
+    ["連れていく", "つれていく", "데려가다"],
+    ["連れてくる", "つれてくる", "데려오다"]
+  ]},
+  { id:"d3", name:"6과", words:[
+    ["あまり", "あまり", "그다지, 잘, 별로"],
+    ["だめだ", "だめだ", "안 된다"],
+    ["早く", "はやく", "빨리"],
+    ["間違う", "まちがう", "틀리다"],
+    ["レポートを出す", "レポートをだす", "리포트를 내다"],
+    ["しかたない", "しかたない", "할 수 없다, 별 수 없다"],
+    ["～までに", "～までに", "~까지"],
+    ["道が混む", "みちがこむ", "길이 막히다, 길이 붐비다"],
+    ["体力", "たいりょく", "체력"],
+    ["あやまる", "あやまる", "사과하다"],
+    ["許す", "ゆるす", "용서하다"],
+    ["風が吹く", "かぜがふく", "바람이 불다"],
+    ["～中", "～ちゅう", "~중"],
+    ["うっかり", "うっかり", "깜빡, 무심코"],
+    ["うっかりする", "うっかりする", "깜빡하다"],
+    ["約束", "やくそく", "약속"],
+    ["鍵をかける", "かぎをかける", "자물쇠를 채우다, 잠그다"],
+    ["答える", "こたえる", "대답하다"],
+    ["自分", "じぶん", "자신, 본인"],
+    ["計画", "けいかく", "계획"],
+    ["立てる", "たてる", "세우다, 수립하다"],
+    ["間に合う", "まにあう", "(딱) 맞다"],
+    ["亡くす", "なくす", "잃다"],
+    ["嘘", "うそ", "거짓말"],
+    ["嘘つく", "うそつく", "거짓말하다"],
+    ["急ぐ", "いそぐ", "서두르다"],
+    ["返事", "へんじ", "답장, 답변"],
+    ["汚い", "きたない", "더럽다"],
+    ["お客さん", "おきゃくさん", "손님, 고객"],
+    ["指輪", "ゆびわ", "반지"],
+    ["指", "ゆび", "손가락"],
+    ["落とす", "おとす", "떨어뜨리다, 떨구다"],
+    ["落ちる", "おちる", "떨어지다"],
+    ["片付ける", "かたづける", "정리하다, 정돈하다"],
+    ["洗濯", "せんたく", "세탁, 빨래"],
+    ["ゴミを捨てる", "ゴミをすてる", "쓰레기를 버리다"],
+    ["世話する", "せわする", "돌보다, 신세를 봐 주다"]
+  ]},
+  { id:"d4", name:"7·8과", words:[
+    ["何回", "なんかい", "몇 번, 몇 회"],
+    ["いくら", "いくら", "얼마, 얼마나"],
+    ["全部", "ぜんぶ", "전부, 모두"],
+    ["全て", "すべて", "전부, 모두"],
+    ["用意", "ようい", "준비, 대비, 마련"],
+    ["準備", "じゅんび", "준비"],
+    ["手伝う", "てつだう", "돕다"],
+    ["助かる", "たすかる", "도움 받다, 도움이 되다"],
+    ["苦い", "にがい", "쓰다"],
+    ["彼", "かれ", "그"],
+    ["彼女", "かのじょ", "그녀"],
+    ["息子", "むすこ", "아들"],
+    ["娘", "むすめ", "딸"],
+    ["壁", "かべ", "벽"],
+    ["考える", "かんがえる", "생각하다, 고려하다"],
+    ["脱ぐ", "ぬぐ", "벗다"],
+    ["予約する", "よやくする", "예약하다"],
+    ["音", "おと", "소리"],
+    ["火", "ひ", "불"],
+    ["半分", "はんぶん", "절반"],
+    ["練習", "れんしゅう", "연습"],
+    ["油", "あぶら", "기름"],
+    ["あっさりしている", "あっさりしている", "담백하다"],
+    ["さっぱりしている", "さっぱりしている", "산뜻하다, 개운하다"],
+    ["窓", "まど", "창문"],
+    ["見える", "みえる", "보이다"],
+    ["気に入る", "きにいる", "마음에 들다"],
+    ["開く", "あく", "열다, 열리다"],
+    ["開ける", "あける", "열다"],
+    ["閉める", "しめる", "닫다"],
+    ["暖房", "だんぼう", "난방"],
+    ["つく", "つく", "(전기 등) 켜지다, 들어오다"],
+    ["つける", "つける", "(전기 따위를) 켜다"],
+    ["冷蔵庫", "れいぞうこ", "냉장고"],
+    ["入れる", "いれる", "넣다"],
+    ["置く", "おく", "두다"],
+    ["野菜", "やさい", "야채, 채소"],
+    ["しまう", "しまう", "~해 버리다"],
+    ["そのまま", "そのまま", "그대로, 그러한 채"],
+    ["隣", "となり", "옆, 이웃"],
+    ["聞こえる", "きこえる", "들리다"],
+    ["最～", "さい～", "가장~, 제일~, 최~"],
+    ["曲", "きょく", "곡, 노래"],
+    ["通る", "とおる", "통과하다, 지나가다"],
+    ["通す", "とおす", "통과시키다"],
+    ["飛ぶ", "とぶ", "날다"],
+    ["越える", "こえる", "넘다"],
+    ["離れる", "はなれる", "떠나다, 멀어지다"],
+    ["玄関", "げんかん", "현관"],
+    ["飾る", "かざる", "장식하다"],
+    ["止まる", "とまる", "멈추다"],
+    ["止める", "とめる", "멈추다"],
+    ["壊れる", "こわれる", "무너지다"],
+    ["壊す", "こわす", "무너뜨리다"],
+    ["消す", "けす", "끄다"],
+    ["消える", "きえる", "꺼지다, 사라지다"],
+    ["倒す", "たおす", "쓰러뜨리다"],
+    ["倒れる", "たおれる", "쓰러지다"],
+    ["汚す", "よごす", "오염시키다, 더럽히다"],
+    ["汚れる", "よごれる", "더러워지다"],
+    ["並ぶ", "ならぶ", "나란히 있다, 나란하다"],
+    ["並べる", "ならべる", "나열하다, 나란히 두다"],
+    ["お皿", "おさら", "접시, 그릇"],
+    ["地図", "ちず", "지도"],
+    ["貼る", "はる", "붙이다"],
+    ["コピー", "コピー", "복사, 카피"],
+    ["印刷", "いんさつ", "인쇄"]
+  ]},
+  { id:"d5", name:"10과", words:[
+    ["降りる", "おりる", "내리다"],
+    ["出口", "でぐち", "출구"],
+    ["入口", "いりぐち", "입구"],
+    ["所", "ところ", "곳"],
+    ["場所", "ばしょ", "장소"],
+    ["いろいろと", "いろいろと", "여러 가지"],
+    ["暗い", "くらい", "어둡다"],
+    ["明るい", "あかるい", "밝다"],
+    ["残念だ", "ざんねんだ", "아쉽다"],
+    ["他の", "ほかの", "다른"],
+    ["他にも", "ほかにも", "이외에도"],
+    ["探す", "さがす", "찾다, 탐구하다"],
+    ["人気", "にんき", "인기"],
+    ["人気だ", "にんきだ", "인기 있다"],
+    ["～番目", "～ばんめ", "~번째"],
+    ["製品", "せいひん", "제품"],
+    ["燃える", "もえる", "타다, 불타다"],
+    ["燃やす", "もやす", "태우다, 불태우다"],
+    ["魚", "さかな", "물고기, 생선"],
+    ["着く", "つく", "도착하다"],
+    ["一生懸命", "いっしょうけんめい", "열심히, 열심히 함"],
+    ["電話番号", "でんわばんごう", "전화번호"],
+    ["お金持ち", "おかねもち", "부자"],
+    ["温泉", "おんせん", "온천"],
+    ["なかなか", "なかなか", "어째선지, 좀처럼"],
+    ["発音", "はつおん", "발음"],
+    ["やせる", "やせる", "살이 빠지다, 야위다"],
+    ["恋人", "こいびと", "연인"],
+    ["できる", "できる", "할 수 있다, (새로) 생기다, 완성되다"],
+    ["ダイエット", "ダイエット", "다이어트"],
+    ["ホームシック", "ホームシック", "향수병"]
+  ]},
+  { id:"d6", name:"11과", words:[
+    ["連休", "れんきゅう", "연휴"],
+    ["キャンプ", "キャンプ", "캠프, 캠핑"],
+    ["～らしい", "～らしい", "~인 듯하다, ~답다"],
+    ["実は", "じつは", "사실은, 실은"],
+    ["頑張る", "がんばる", "힘내다, 힘쓰다"],
+    ["定食", "ていしょく", "정식"],
+    ["どうも", "どうも", "정말이지, 어째선지"],
+    ["誘う", "さそう", "권하다, 권유하다"],
+    ["別れる", "わかれる", "헤어지다"],
+    ["続ける", "つづける", "계속하다, 이어 하다"],
+    ["続く", "つづく", "계속되다, 이어지다"],
+    ["辞める", "やめる", "그만하다"],
+    ["諦める", "あきらめる", "포기하다"],
+    ["就職する", "しゅうしょくする", "취직하다"],
+    ["大学院", "だいがくいん", "대학원"],
+    ["塾", "じゅく", "학원"],
+    ["火事", "かじ", "화재"],
+    ["お寺", "おてら", "절"],
+    ["神社", "じんじゃ", "신사"]
+  ]},
+  { id:"d7", name:"12과", words:[
+    ["生活", "せいかつ", "생활"],
+    ["暮らし", "くらし", "생활, 삶, 살이"],
+    ["すっかり", "すっかり", "완전히"],
+    ["しっかり", "しっかり", "확실히, 분명히"],
+    ["慣れる", "なれる", "익숙해지다"],
+    ["経つ", "たつ", "달하다, 경과하다"],
+    ["大分", "だいぶ", "상당히, 대부분, 꽤"],
+    ["あちこち(あっちこっち)", "あちこち(あっちこっち)", "이곳저곳"],
+    ["必ず", "かならず", "반드시, 무조건"],
+    ["納豆", "なっとう", "낫토"],
+    ["野球", "やきゅう", "야구"],
+    ["復習する", "ふくしゅうする", "복습하다"],
+    ["予習する", "よしゅうする", "예습하다"],
+    ["治る", "なおる", "낫다, 고쳐지다, 치료되다"],
+    ["きっと", "きっと", "꼭, 부디"],
+    ["呼ぶ", "よぶ", "부르다"],
+    ["メートル", "メートル", "미터"],
+    ["センチメートル", "センチメートル", "센티미터"],
+    ["キロメートル", "キロメートル", "킬로미터"],
+    ["発表", "はっぴょう", "발표"],
+    ["晴れ", "はれ", "맑음, 쾌청"],
+    ["曇り", "くもり", "흐림"],
+    ["台風", "たいふう", "태풍"],
+    ["雷", "かみなり", "번개, 천둥"],
+    ["雪が止む", "ゆきがやむ", "눈이 그치다"],
+    ["梅雨", "つゆ", "장마"],
+    ["梅雨が明ける", "つゆがあける", "장마가 끝나다, 날이 개다"]
+  ]},
+  { id:"d8", name:"13과", words:[
+    ["怒る", "おこる", "화내다, 분개하다"],
+    ["見つかる", "みつかる", "발견하다, 찾다"],
+    ["持っていく", "もっていく", "가져가다"],
+    ["～と言われる", "～といわれる", "~(라)고 듣다"],
+    ["大事だ", "だいじだ", "중요하다"],
+    ["同じだ", "おなじだ", "같다"],
+    ["それに", "それに", "게다가"],
+    ["ぬれる", "ぬれる", "젖다, 축축해지다"],
+    ["ついていない", "ついていない", "운 없다"],
+    ["ほめる", "ほめる", "칭찬하다"],
+    ["叱る", "しかる", "꾸짖다, 혼내다"],
+    ["皆", "みんな", "모두"],
+    ["泣く", "なく", "울다"],
+    ["眠る", "ねむる", "자다, 잠들다"],
+    ["たたく", "たたく", "치다, 때리다"],
+    ["泥棒", "どろぼう", "도둑"],
+    ["盗む", "ぬすむ", "훔치다"],
+    ["危険だ", "きけんだ", "위험하다"],
+    ["部長", "ぶちょう", "부장(님)"],
+    ["課長", "かちょう", "과장(님)"],
+    ["頼む", "たのむ", "부탁하다, 청하다"],
+    ["盗る", "とる", "훔치다"],
+    ["踏む", "ふむ", "밟다"],
+    ["急に", "きゅうに", "서둘러, 급히"],
+    ["(お)先に", "(お)さきに", "먼저"],
+    ["騒ぐ", "さわぐ", "소란피우다, 떠들다"],
+    ["もっと", "もっと", "더, 더욱"],
+    ["笑う", "わらう", "웃다"],
+    ["遅刻", "ちこく", "지각"]
+  ]},
+  { id:"d9", name:"15·16과", words:[
+    ["お+ます형+になる", "お+ます형+になる", "~하시다"],
+    ["お+ます형+ください", "お+ます형+ください", "~해 주세요"],
+    ["かける", "かける", "걸터앉다"],
+    ["なさる", "なさる", "하시다"],
+    ["いらっしゃる", "いらっしゃる", "가시다, 오시다, 계시다"],
+    ["召し上がる", "めしあがる", "드시다"],
+    ["ご覧になる", "ごらんになる", "보시다"],
+    ["研究", "けんきゅう", "연구"],
+    ["方", "かた", "분"],
+    ["住所", "じゅうしょ", "주소"],
+    ["美しい", "うつくしい", "아름답다"],
+    ["熱心だ", "ねっしんだ", "열중하다, 열심히 하다"],
+    ["サラダ", "サラダ", "샐러드"],
+    ["今朝", "けさ", "오늘 아침"],
+    ["どなた", "どなた", "어느 분"],
+    ["クラシック", "クラシック", "클래식"],
+    ["ジャズ", "ジャズ", "재즈"],
+    ["ポップソング", "ポップソング", "팝송"],
+    ["書類", "しょるい", "서류"],
+    ["～類", "～るい", "~류"],
+    ["～と申します", "～ともうします", "~(이)라고 합니다"],
+    ["おる", "おる", "있다"],
+    ["お+ます형+する", "お+ます형+する", "~하다"],
+    ["いたす", "いたす", "하다"],
+    ["戻る", "もどる", "돌아오다"],
+    ["戻す", "もどす", "되돌리다"],
+    ["相談", "そうだん", "상담"],
+    ["論文", "ろんぶん", "논문"],
+    ["伺う", "うかがう", "가다, 오다"],
+    ["届ける", "とどける", "보내다, 전하다"],
+    ["届く", "とどく", "닿다, 전해지다"],
+    ["市内", "しない", "시내"],
+    ["スケジュール", "スケジュール", "스케줄, 일정"],
+    ["説明する", "せつめいする", "설명하다"],
+    ["使い方", "つかいかた", "사용 방법"],
+    ["ます형+方", "ます형+かた", "~하는 방법"],
+    ["連絡する", "れんらくする", "연락하다"],
+    ["久しい", "ひさしい", "오랜만이다"],
+    ["久しぶり", "ひさしぶり", "오랜만, 간만"],
+    ["お世話になる", "おせわになる", "신세 지다"],
+    ["ぜひ", "ぜひ", "부디, 꼭, 제발"]
+  ]}
+]}
+];
+let DECKS = [];
+let curBook = null;
+
+/* ---------------- 저장소 (사파리 프라이빗 모드 대비) ---------------- */
+const store = (()=>{
+  let mem = {};
+  let ok = true;
+  try { localStorage.setItem("__t","1"); localStorage.removeItem("__t"); } catch(e){ ok = false; }
+  return {
+    get(k,d){ try{ const v = ok ? localStorage.getItem(k) : mem[k];
+      return v==null ? d : JSON.parse(v); }catch(e){ return d; } },
+    set(k,v){ try{ const s=JSON.stringify(v); if(ok) localStorage.setItem(k,s); else mem[k]=s; }catch(e){} }
+  };
+})();
+
+let starred = new Set(store.get("starred_app",[]));
+const opts = Object.assign({shuffle:true,repeat:true,reverse:false}, store.get("opts",{}));
+
+/* ---------------- 상태 ---------------- */
+let queue=[], cur=null, curDeck=null, total=0, resolved=new Set();
+let knowCount=0, wrongSet=new Set(), wrongOrder=[];
+let seconds=0, timer=null, revealed={kana:false,ko:false};
+
+const $ = id => document.getElementById(id);
+
+/* ---------------- 시작 화면 ---------------- */
+function renderHome(){
+  const list = $("deckList");
+  list.innerHTML = "";
+  const atBooks = !curBook;
+  $("btnBooks").hidden = atBooks;
+  $("settings").hidden = atBooks;
+
+  if(atBooks){
+    $("homeTitle").textContent = "日本語 単語帳";
+    $("homeSub").textContent = "단어장을 고른 뒤, 공부할 과를 선택하세요.";
+    $("secLabel").textContent = "단어장";
+    BOOKS.forEach(b=>{
+      const n = b.decks.reduce((a,d)=>a+d.words.length,0);
+      const btn = deckBtn(b.name, n+"단어", ()=>{ curBook=b; DECKS=b.decks; renderHome(); $("home").scrollTop=0; });
+      const sub = document.createElement("span"); sub.className="s"; sub.textContent=b.sub;
+      btn.querySelector(".t").appendChild(sub);
+      list.appendChild(btn);
+    });
+    return;
+  }
+
+  $("homeTitle").textContent = curBook.name;
+  $("homeSub").textContent = curBook.sub;
+  $("secLabel").textContent = "과 선택";
+  DECKS.forEach(d=>{
+    list.appendChild(deckBtn(d.name, d.words.length+"단어", ()=>start(d.name, d.words)));
+  });
+  const all = DECKS.flatMap(d=>d.words);
+  list.appendChild(deckBtn("전체 단어", all.length+"단어", ()=>start("전체 단어", all)));
+
+  const st = all.filter(w=>starred.has(w[0]));
+  const b = deckBtn("☆ 어려운 단어", st.length+"단어", ()=> st.length && start("☆ 어려운 단어", st));
+  if(!st.length) b.classList.add("off");
+  list.appendChild(b);
+
+  setSw("swShuffle",opts.shuffle); setSw("swRepeat",opts.repeat); setSw("swReverse",opts.reverse);
+}
+$("btnBooks").onclick = ()=>{ curBook=null; DECKS=[]; renderHome(); $("home").scrollTop=0; };
+function deckBtn(title, n, fn){
+  const b = document.createElement("button");
+  b.className = "deck";
+  b.innerHTML = '<span class="t"></span><span class="n"></span>';
+  b.querySelector(".t").textContent = title;
+  b.querySelector(".n").textContent = n;
+  b.onclick = fn;
+  return b;
+}
+function setSw(id,on){ $(id).classList.toggle("on",!!on); }
+[["swShuffle","shuffle"],["swRepeat","repeat"],["swReverse","reverse"]].forEach(([id,key])=>{
+  $(id).onclick = ()=>{ opts[key]=!opts[key]; setSw(id,opts[key]); store.set("opts",opts); };
+});
+
+/* ---------------- 학습 시작 ---------------- */
+function start(name, words){
+  curDeck = {name, words};
+  buildRound(words);
+  $("home").classList.add("hidden");
+  $("result").classList.add("hidden");
+  $("deckName").textContent = name;
+  seconds = 0; startTimer();
+  next();
+}
+function buildRound(words){
+  queue = words.slice();
+  if(opts.shuffle) shuffle(queue);
+  total = queue.length;
+  resolved = new Set();
+  knowCount = 0; wrongSet = new Set(); wrongOrder = [];
+}
+function shuffle(a){ for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } }
+
+function startTimer(){
+  clearInterval(timer);
+  timer = setInterval(()=>{ seconds++; $("clock").textContent = fmt(seconds); },1000);
+  $("clock").textContent = fmt(0);
+}
+function fmt(s){ const m=String(Math.floor(s/60)).padStart(2,"0"); return m+":"+String(s%60).padStart(2,"0"); }
+
+/* ---------------- 카드 표시 ---------------- */
+function hideInstant(el){
+  el.classList.add("notrans");
+  el.classList.remove("show");
+  void el.offsetWidth; /* 트랜지션 없이 즉시 반영되도록 강제 리플로우 */
+  el.classList.remove("notrans");
+}
+function next(){
+  if(!queue.length){ finish(); return; }
+  cur = queue.shift();
+  revealed = {kana:false, ko:false};
+
+  /* 텍스트를 바꾸기 전에 먼저 트랜지션 없이 숨겨서, 새 카드의 뜻이 잠깐 비쳐 보이는 걸 방지 */
+  hideInstant($("kana"));
+  hideInstant($("ko"));
+
+  const front = opts.reverse ? cur[2] : cur[0];
+  $("kanji").textContent = front;
+  $("kanji").style.fontSize = "";
+  if(opts.reverse) $("kanji").style.fontSize = "clamp(22px,7vw,34px)";
+  $("kana").textContent = cur[1];
+  $("ko").textContent = opts.reverse ? cur[0] : cur[2];
+  $("btnKana").classList.remove("done");
+  $("btnKo").classList.remove("done");
+  $("btnKo").textContent = opts.reverse ? "한자 보기" : "한국어 뜻";
+
+  $("star").textContent = starred.has(cur[0]) ? "★" : "☆";
+  $("star").classList.toggle("on", starred.has(cur[0]));
+  $("wrongTag").textContent = wrongSet.has(cur[0]) ? "다시 나온 단어" : "";
+  $("chip").textContent = "";
+  updateHead();
+}
+function updateHead(){
+  $("count").textContent = resolved.size + " / " + total;
+  $("barFill").style.width = (total ? resolved.size/total*100 : 0) + "%";
+  $("wrongN").textContent = wrongSet.size;
+  $("leftN").textContent = Math.max(0, total - resolved.size);
+}
+
+$("btnKana").onclick = ()=>{ revealed.kana=true; $("kana").classList.add("show"); $("btnKana").classList.add("done"); };
+$("btnKo").onclick   = ()=>{ revealed.ko=true;   $("ko").classList.add("show");   $("btnKo").classList.add("done"); };
+$("card").onclick = e =>{
+  if(e.target.id==="star") return;
+  if(!revealed.kana) $("btnKana").onclick();
+  else if(!revealed.ko) $("btnKo").onclick();
+};
+$("star").onclick = ()=>{
+  if(!cur) return;
+  if(starred.has(cur[0])) starred.delete(cur[0]); else starred.add(cur[0]);
+  store.set("starred_app",[...starred]);
+  $("star").textContent = starred.has(cur[0]) ? "★" : "☆";
+  $("star").classList.toggle("on", starred.has(cur[0]));
+};
+
+$("btnKnow").onclick = ()=>{
+  if(!cur) return;
+  if(!wrongSet.has(cur[0])) knowCount++;
+  resolved.add(cur[0]);
+  next();
+};
+$("btnDont").onclick = ()=>{
+  if(!cur) return;
+  if(!wrongSet.has(cur[0])){ wrongSet.add(cur[0]); wrongOrder.push(cur); }
+  resolved.delete(cur[0]);
+  if(opts.repeat){
+    const pos = Math.floor(Math.random()*(queue.length+1));
+    queue.splice(pos, 0, cur);
+  }
+  next();
+};
+
+/* ---------------- 결과 ---------------- */
+function finish(){
+  clearInterval(timer);
+  cur = null;
+  const allKnown = wrongOrder.length===0;
+  $("resTitle").textContent = allKnown ? "전부 외웠습니다" : "1회독 완료";
+  $("resSub").textContent = curDeck.name + " · " + total + "단어";
+  $("resKnow").textContent = knowCount;
+  $("resDont").textContent = wrongOrder.length;
+  $("resTime").textContent = fmt(seconds);
+
+  const list = $("resList");
+  list.innerHTML = "";
+  wrongOrder.forEach(w=>{
+    const r = document.createElement("div");
+    r.className = "row";
+    r.innerHTML = '<span class="j"></span><span class="r"></span><span class="m"></span>';
+    r.querySelector(".j").textContent = w[0];
+    r.querySelector(".r").textContent = w[1];
+    r.querySelector(".m").textContent = w[2];
+    list.appendChild(r);
+  });
+  $("resListLabel").style.display = allKnown ? "none" : "";
+  $("btnAgainWrong").style.display = allKnown ? "none" : "";
+  $("result").classList.remove("hidden");
+}
+$("btnAgainWrong").onclick = ()=>{
+  const again = wrongOrder.slice();
+  $("result").classList.add("hidden");
+  buildRound(again);
+  $("deckName").textContent = curDeck.name + " · 복습";
+  startTimer(); next();
+};
+$("btnAgainAll").onclick = ()=>{
+  $("result").classList.add("hidden");
+  buildRound(curDeck.words);
+  $("deckName").textContent = curDeck.name;
+  startTimer(); next();
+};
+$("btnBackHome").onclick = goHome;
+$("btnHome").onclick = goHome;
+function goHome(){
+  clearInterval(timer);
+  $("result").classList.add("hidden");
+  renderHome();
+  $("home").classList.remove("hidden");
+}
+
+/* 키보드 (맥 사파리용) */
+document.addEventListener("keydown", e=>{
+  if(!$("home").classList.contains("hidden") || !$("result").classList.contains("hidden")) return;
+  if(e.code==="Space"){ e.preventDefault(); $("card").click(); }
+  if(e.key==="1"||e.key==="ArrowLeft") $("btnKnow").click();
+  if(e.key==="2"||e.key==="ArrowRight") $("btnDont").click();
+});
+
+renderHome();
+if("serviceWorker" in navigator){ try{ navigator.serviceWorker.register("sw.js"); }catch(e){} }
+</script>
+
+
+</body>
+</html>
