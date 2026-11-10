@@ -159,6 +159,21 @@
   .row .j{font-family:"Hiragino Mincho ProN",serif;font-size:18px;flex:0 0 auto;}
   .row .r{font-size:12px;color:var(--paper-dim);flex:0 0 auto;}
   .row .m{font-size:13px;color:var(--paper-dim);margin-left:auto;text-align:right;}
+  /* ---------- 단어 추가/관리 화면 ---------- */
+  .field{
+    width:100%;display:block;background:var(--ink-2);color:var(--paper);border:1px solid var(--line);
+    border-radius:12px;padding:13px 14px;font-family:inherit;font-size:16px;margin:0 0 9px;
+  }
+  .field[hidden]{display:none;}
+  input.field,textarea.field{-webkit-appearance:none;appearance:none;}
+  textarea.field{resize:none;line-height:1.5;}
+  .field::placeholder{color:#7C8590;}
+  .box{
+    background:var(--ink-2);border:1px solid var(--line);border-radius:12px;padding:13px 14px;
+    font-size:13px;line-height:1.6;color:var(--paper-dim);
+  }
+  .msg{font-size:13px;color:var(--paper-dim);line-height:1.7;margin:14px 0 0;white-space:pre-line;word-break:break-all;}
+  .row .del{margin-left:auto;color:var(--shu);font-size:14px;font-weight:600;padding:4px 6px;flex:0 0 auto;}
   .note{font-size:12px;color:#7C8590;line-height:1.6;margin-top:24px;}
   @media (min-width:700px){
     body{max-width:520px;margin:0 auto;border-left:1px solid var(--line);border-right:1px solid var(--line);}
@@ -213,6 +228,11 @@
   <div class="sec" id="secLabel">단어장</div>
   <div id="deckList"></div>
 
+  <div id="homeTools">
+  <button class="ghost" id="btnAdd">단어 추가</button>
+  <button class="ghost" id="btnManage">추가한 단어 관리</button>
+  </div>
+
   <div id="settings" hidden>
   <div class="sec">설정</div>
   <div class="toggle"><span>순서 섞기</span><div class="sw on" id="swShuffle"></div></div>
@@ -240,6 +260,50 @@
   <button class="big" id="btnAgainWrong">모르는 단어만 다시</button>
   <button class="ghost" id="btnAgainAll">처음부터 다시</button>
   <button class="ghost" id="btnBackHome">과 목록</button>
+</section>
+
+<!-- 단어 추가 화면 -->
+<section class="screen hidden" id="add">
+  <button class="back" id="btnAddBack">‹ 단어장 목록</button>
+  <h1 class="title">단어 추가</h1>
+  <p class="sub">교재 사진을 Claude에 보내고, 받은 답을 붙여넣으세요.</p>
+
+  <div class="sec">1. 사진과 함께 Claude에 보낼 요청문</div>
+  <div class="box" id="promptText"></div>
+  <button class="ghost" id="btnCopyPrompt">요청문 복사</button>
+
+  <div class="sec">2. Claude의 답 붙여넣기</div>
+  <textarea class="field" id="addText" rows="7" placeholder="紙幣 | しへい | 지폐"></textarea>
+
+  <div class="sec">3. 넣을 곳</div>
+  <select class="field" id="addBook" aria-label="단어장"></select>
+  <input class="field" id="addBookName" placeholder="새 단어장 이름" hidden>
+  <input class="field" id="addDeckName" placeholder="과 이름 (예: 17과)">
+  <button class="ghost" id="btnPreview">미리보기</button>
+
+  <p class="msg" id="addMsg"></p>
+  <div class="list" id="addList"></div>
+  <button class="big" id="btnSave" hidden>저장</button>
+</section>
+
+<!-- 추가한 단어 관리 화면 -->
+<section class="screen hidden" id="manage">
+  <button class="back" id="btnManageBack">‹ 단어장 목록</button>
+  <h1 class="title">추가한 단어 관리</h1>
+  <p class="sub">추가한 단어는 이 기기에만 저장됩니다.</p>
+
+  <div class="sec">추가한 과</div>
+  <div class="list" id="mgList"></div>
+
+  <div class="sec">백업</div>
+  <textarea class="field" id="bkText" rows="5" aria-label="백업 글자"></textarea>
+  <button class="ghost" id="btnBkCopy">백업 복사</button>
+  <button class="ghost" id="btnBkLoad">백업 가져오기</button>
+  <p class="msg" id="bkMsg"></p>
+  <p class="note">
+    ‘백업 복사’로 복사한 글자를 메모 앱 등에 보관해 두세요. 추가한 단어와 ☆ 표시가 함께 들어 있습니다.
+    다른 기기로 옮기거나 되살릴 때는 위 칸에 그 글자를 붙여넣고 ‘백업 가져오기’를 누릅니다.
+  </p>
 </section>
 
 <script>
@@ -689,6 +753,16 @@ const store = (()=>{
 })();
 
 let starred = new Set(store.get("starred_app",[]));
+
+/* ---------------- 추가한 단어 (기본 단어장 BOOKS 뒤에 합쳐서 보여줌) ---------------- */
+let added = store.get("added_app", null);
+if(!added || !Array.isArray(added.books) || !Array.isArray(added.decks)) added = {books:[],decks:[]};
+function books(){
+  const out = BOOKS.map(b=>({id:b.id,name:b.name,sub:b.sub,decks:b.decks.slice()}));
+  added.books.forEach(b=>out.push({id:b.id,name:b.name,sub:"추가한 단어장",decks:[]}));
+  added.decks.forEach(d=>{ const b = out.find(x=>x.id===d.book); if(b) b.decks.push(d); });
+  return out;
+}
 const opts = Object.assign({shuffle:true,repeat:true,reverse:false}, store.get("opts",{}));
 
 /* ---------------- 상태 ---------------- */
@@ -705,12 +779,13 @@ function renderHome(){
   const atBooks = !curBook;
   $("btnBooks").hidden = atBooks;
   $("settings").hidden = atBooks;
+  $("homeTools").hidden = !atBooks;
 
   if(atBooks){
     $("homeTitle").textContent = "日本語 単語帳";
     $("homeSub").textContent = "단어장을 고른 뒤, 공부할 과를 선택하세요.";
     $("secLabel").textContent = "단어장";
-    BOOKS.forEach(b=>{
+    books().forEach(b=>{
       const n = b.decks.reduce((a,d)=>a+d.words.length,0);
       const btn = deckBtn(b.name, n+"단어", ()=>{ curBook=b; DECKS=b.decks; renderHome(); $("home").scrollTop=0; });
       const sub = document.createElement("span"); sub.className="s"; sub.textContent=b.sub;
@@ -895,6 +970,160 @@ function goHome(){
   renderHome();
   $("home").classList.remove("hidden");
 }
+
+/* ---------------- 단어 추가 ---------------- */
+const PROMPT = "이 사진에 있는 일본어 단어를 빠짐없이 뽑아줘.\n"
+  + "한 줄에 단어 하나씩 「표기 | 히라가나 읽기 | 한국어 뜻」 형식으로, 코드 블록 하나에 담아서 답해줘.\n"
+  + "한자가 없는 단어는 표기와 읽기를 똑같이 적어줘.\n"
+  + "후리가나와 뜻은 사진 그대로 옮기고, 명백한 오타만 고친 뒤 무엇을 고쳤는지 코드 블록 아래에 따로 알려줘.";
+$("promptText").textContent = PROMPT;
+
+function copyText(text, btn){
+  const label = btn.textContent;
+  const done = ()=>{ btn.textContent = "복사했습니다"; setTimeout(()=>{ btn.textContent = label; }, 1500); };
+  const old = ()=>{
+    const t = document.createElement("textarea");
+    t.value = text; t.setAttribute("readonly",""); t.style.position = "fixed"; t.style.opacity = "0";
+    document.body.appendChild(t); t.select(); t.setSelectionRange(0, text.length);
+    try{ document.execCommand("copy"); done(); }catch(e){}
+    document.body.removeChild(t);
+  };
+  try{ navigator.clipboard.writeText(text).then(done, old); }catch(e){ old(); }
+}
+function wordRow(w){
+  const r = document.createElement("div");
+  r.className = "row";
+  r.innerHTML = '<span class="j"></span><span class="r"></span><span class="m"></span>';
+  r.querySelector(".j").textContent = w[0];
+  r.querySelector(".r").textContent = w[1];
+  r.querySelector(".m").textContent = w[2];
+  return r;
+}
+/* 「표기 | 읽기 | 뜻」 줄을 단어로 바꿈. 표 형식이나 탭으로 나뉜 글도 받아 줌 */
+function parseWords(text){
+  const words = [], bad = [];
+  text.split(/\r?\n/).forEach(raw=>{
+    const line = raw.trim().replace(/^[|｜]/,"").replace(/[|｜]$/,"").trim();
+    if(!line || line.indexOf("```")===0 || /^[\s|｜:\-]+$/.test(line)) return;
+    const p = line.split(/\s*[|｜\t]\s*/);
+    if(p[0]==="표기") return;
+    if(p.length<3 || !p[0] || !p[1] || !p[2]){ bad.push(line); return; }
+    words.push([p[0], p[1], p.slice(2).join(", ")]);
+  });
+  return {words, bad};
+}
+function openAdd(){
+  const sel = $("addBook");
+  sel.innerHTML = "";
+  books().forEach(b=>{ const o = document.createElement("option"); o.value = b.id; o.textContent = b.name; sel.appendChild(o); });
+  const o = document.createElement("option"); o.value = ""; o.textContent = "새 단어장 만들기"; sel.appendChild(o);
+  $("addBookName").hidden = true;
+  clearPreview();
+  $("add").classList.remove("hidden");
+  $("add").scrollTop = 0;
+}
+function clearPreview(){ $("addMsg").textContent = ""; $("addList").innerHTML = ""; $("btnSave").hidden = true; }
+/* 입력값을 읽어 미리보기를 그리고, 저장해도 되면 저장할 내용을 돌려줌 */
+function readAdd(){
+  const {words, bad} = parseWords($("addText").value);
+  const bookId = $("addBook").value;
+  const bookName = $("addBookName").value.trim(), deckName = $("addDeckName").value.trim();
+  const book = bookId ? books().find(b=>b.id===bookId) : null;
+  const seen = new Set(book ? book.decks.flatMap(d=>d.words).map(w=>w[0]) : []);
+  const fresh = [], dup = [];
+  words.forEach(w=>{ if(seen.has(w[0])) dup.push(w[0]); else { seen.add(w[0]); fresh.push(w); } });
+
+  let err = "";
+  if(!fresh.length) err = "추가할 단어가 없습니다.";
+  else if(!bookId && !bookName) err = "새 단어장 이름을 적어 주세요.";
+  else if(!deckName) err = "과 이름을 적어 주세요.";
+  else if(BOOKS.some(b=>b.id===bookId && b.decks.some(d=>d.name===deckName))) err = "이미 있는 과 이름입니다. 다른 이름을 적어 주세요.";
+
+  const msg = [];
+  if(fresh.length) msg.push("추가할 단어 " + fresh.length + "개");
+  if(added.decks.some(d=>d.book===bookId && d.name===deckName)) msg.push("‘" + deckName + "’에 이어서 추가됩니다.");
+  if(dup.length) msg.push("이미 있는 단어 " + dup.length + "개는 넘어갑니다: " + dup.join(", "));
+  if(bad.length) msg.push("형식이 맞지 않아 넘어가는 줄 " + bad.length + "개:\n" + bad.join("\n"));
+  if(err) msg.push(err);
+  $("addMsg").textContent = msg.join("\n");
+  const list = $("addList");
+  list.innerHTML = "";
+  fresh.forEach(w=>list.appendChild(wordRow(w)));
+  $("btnSave").hidden = !!err;
+  $("btnSave").textContent = fresh.length + "단어 저장";
+  return err ? null : {bookId, bookName, deckName, words:fresh};
+}
+$("btnAdd").onclick = openAdd;
+$("btnAddBack").onclick = ()=>{ $("add").classList.add("hidden"); };
+$("btnCopyPrompt").onclick = ()=>copyText(PROMPT, $("btnCopyPrompt"));
+$("addBook").onchange = ()=>{ $("addBookName").hidden = $("addBook").value!==""; clearPreview(); };
+$("addText").oninput = $("addBookName").oninput = $("addDeckName").oninput = clearPreview;
+$("btnPreview").onclick = readAdd;
+$("btnSave").onclick = ()=>{
+  const a = readAdd();
+  if(!a) return;
+  let bookId = a.bookId;
+  if(!bookId){ bookId = "u" + Date.now(); added.books.push({id:bookId, name:a.bookName}); }
+  const ex = added.decks.find(d=>d.book===bookId && d.name===a.deckName);
+  if(ex) ex.words = ex.words.concat(a.words);
+  else added.decks.push({book:bookId, id:"a" + Date.now(), name:a.deckName, words:a.words});
+  store.set("added_app", added);
+  $("addText").value = ""; $("addBookName").value = ""; $("addDeckName").value = "";
+  curBook = books().find(b=>b.id===bookId); DECKS = curBook.decks;
+  $("add").classList.add("hidden");
+  renderHome(); $("home").scrollTop = 0;
+};
+
+/* ---------------- 추가한 단어 관리 · 백업 ---------------- */
+function renderManage(){
+  const list = $("mgList");
+  list.innerHTML = "";
+  const all = books();
+  added.decks.forEach(d=>{
+    const b = all.find(x=>x.id===d.book);
+    const r = document.createElement("div");
+    r.className = "row";
+    r.innerHTML = '<span class="j"></span><span class="r"></span><button class="del">삭제</button>';
+    r.querySelector(".j").textContent = d.name;
+    r.querySelector(".r").textContent = (b ? b.name : "") + " · " + d.words.length + "단어";
+    r.querySelector(".del").onclick = ()=>{
+      if(!confirm("‘" + d.name + "’ " + d.words.length + "단어를 삭제할까요?")) return;
+      added.decks = added.decks.filter(x=>x!==d);
+      added.books = added.books.filter(x=>added.decks.some(y=>y.book===x.id));
+      store.set("added_app", added);
+      renderManage();
+    };
+    list.appendChild(r);
+  });
+  if(!added.decks.length){ const p = document.createElement("p"); p.className = "msg"; p.style.margin = "0"; p.textContent = "추가한 과가 없습니다."; list.appendChild(p); }
+  $("bkText").value = JSON.stringify({app:"wordbook", books:added.books, decks:added.decks, starred:[...starred]});
+}
+$("btnManage").onclick = ()=>{ $("bkMsg").textContent = ""; renderManage(); $("manage").classList.remove("hidden"); $("manage").scrollTop = 0; };
+$("btnManageBack").onclick = ()=>{ $("manage").classList.add("hidden"); renderHome(); };
+$("btnBkCopy").onclick = ()=>{ renderManage(); copyText($("bkText").value, $("btnBkCopy")); };
+$("btnBkLoad").onclick = ()=>{
+  let d = null;
+  try{ d = JSON.parse($("bkText").value); }catch(e){}
+  const okWord = w=>Array.isArray(w) && w.length===3 && w.every(x=>typeof x==="string" && x);
+  if(!d || d.app!=="wordbook" || !Array.isArray(d.books) || !Array.isArray(d.decks) || !Array.isArray(d.starred)
+     || !d.books.every(b=>b && typeof b.id==="string" && typeof b.name==="string")
+     || !d.decks.every(k=>k && typeof k.id==="string" && typeof k.book==="string" && typeof k.name==="string" && Array.isArray(k.words) && k.words.every(okWord))){
+    $("bkMsg").textContent = "백업 글자가 아닙니다. 복사한 글자를 처음부터 끝까지 붙여넣어 주세요.";
+    return;
+  }
+  /* 같은 과는 백업 내용으로 바꾸고, 없는 것은 더함. ☆ 표시는 합침 */
+  d.books.forEach(b=>{ if(!added.books.some(x=>x.id===b.id)) added.books.push({id:b.id, name:b.name}); });
+  d.decks.forEach(k=>{
+    const nk = {book:k.book, id:k.id, name:k.name, words:k.words};
+    const i = added.decks.findIndex(x=>x.id===k.id);
+    if(i>=0) added.decks[i] = nk; else added.decks.push(nk);
+  });
+  d.starred.forEach(s=>{ if(typeof s==="string") starred.add(s); });
+  store.set("added_app", added);
+  store.set("starred_app", [...starred]);
+  renderManage();
+  $("bkMsg").textContent = "백업을 가져왔습니다.";
+};
 
 /* 키보드 (맥 사파리용) */
 document.addEventListener("keydown", e=>{
